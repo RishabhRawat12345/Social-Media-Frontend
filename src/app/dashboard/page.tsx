@@ -22,14 +22,11 @@ interface Post {
   id: number;
   author: string;
   content: string;
-  image_url?: string; // Only filename from DB, e.g. "3_download1.jpg"
+  image_url?: string;
   total_likes: number;
   liked: boolean;
   total_comments: number;
 }
-
-const SUPABASE_BUCKET_URL =
-  "https://rwocivhozcmfswyilrwy.supabase.co/storage/v1/object/public/posts/posts/";
 
 const Dashboard = () => {
   const router = useRouter();
@@ -46,6 +43,7 @@ const Dashboard = () => {
 
     const fetchAll = async () => {
       try {
+        // Fetch posts
         const resPosts = await axios.get<Post[]>(
           "https://socialmediabackend-9hqc.onrender.com/api/posts/",
           { headers: { Authorization: `Bearer ${token}` } }
@@ -59,6 +57,7 @@ const Dashboard = () => {
         }));
         setPosts(mappedPosts);
 
+        // Fetch comments
         const commentsMapTemp: Record<number, Comment[]> = {};
         await Promise.all(
           mappedPosts.map(async (post) => {
@@ -148,11 +147,13 @@ const Dashboard = () => {
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-800 text-white">
+      {/* Sidebar */}
       <div className="hidden md:flex md:flex-col w-64 h-screen border-r border-gray-700 bg-gray-900 fixed top-0 left-0 z-20">
         <Sidebar />
       </div>
 
       <div className="flex-1 flex flex-col md:ml-64">
+        {/* Top Bar */}
         <div className="flex justify-between items-center p-4 border-b border-gray-700 sticky top-0 bg-black z-10">
           <div></div>
           <Button
@@ -182,11 +183,10 @@ const Dashboard = () => {
 
                 {post.image_url && (
                   <Image
-                    src={`${SUPABASE_BUCKET_URL}${post.image_url}`}
+                    src={post.image_url}
                     alt="Post"
                     width={800}
                     height={500}
-                    unoptimized
                     className="w-full max-h-96 object-cover rounded-lg mb-2"
                   />
                 )}
