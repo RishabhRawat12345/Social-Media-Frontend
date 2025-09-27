@@ -14,6 +14,7 @@ interface LoginResponse {
   django_refresh: string;
   supabase_access_token: string;
   user_id: number;
+  is_staff:Boolean
 }
 
 const Login = () => {
@@ -44,7 +45,14 @@ const Login = () => {
       toast.success("Login successful! Redirecting...", { duration: 2000 });
 
       // Navigate to dashboard after toast
-      setTimeout(() => router.push("/dashboard"), 2000);
+        setTimeout(() => {
+          console.log(res.data)
+        if (res.data.is_staff) {
+          router.push("/admin"); // Admin panel
+        } else {
+          router.push("/dashboard"); // Regular dashboard
+        }
+      }, 2000);
     } catch (error) {
       const err = error as AxiosError<{ error?: string }>;
       toast.error(err.response?.data?.error || "Login failed", { duration: 3000 });
