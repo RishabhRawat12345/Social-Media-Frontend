@@ -14,10 +14,10 @@ interface LoginResponse {
   django_refresh: string;
   supabase_access_token: string;
   user_id: number;
-  is_staff:Boolean
+  is_staff: boolean; // fixed Boolean -> boolean
 }
 
-const Login = () => {
+const Login: React.FC = () => {
   const router = useRouter();
   const [form, setForm] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
@@ -45,17 +45,20 @@ const Login = () => {
       toast.success("Login successful! Redirecting...", { duration: 2000 });
 
       // Navigate to dashboard after toast
-        setTimeout(() => {
-          console.log(res.data)
+      setTimeout(() => {
+        console.log(res.data);
         if (res.data.is_staff) {
           router.push("/admin"); // Admin panel
         } else {
           router.push("/dashboard"); // Regular dashboard
         }
       }, 2000);
-    } catch (error) {
-      const err = error as AxiosError<{ error?: string }>;
-      toast.error(err.response?.data?.error || "Login failed", { duration: 3000 });
+    } catch (err: unknown) {
+      let errorMessage = "Login failed";
+      if (axios.isAxiosError(err)) {
+        errorMessage = err.response?.data?.error || err.message;
+      }
+      toast.error(errorMessage, { duration: 3000 });
     } finally {
       setLoading(false);
     }
@@ -113,7 +116,7 @@ const Login = () => {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r bg-black text-white font-semibold py-3 rounded-2xl shadow-lg transition-all duration-300"
+              className="w-full bg-gradient-to-r from-purple-700 to-purple-500 text-white font-semibold py-3 rounded-2xl shadow-lg transition-all duration-300"
             >
               {loading ? "Logging in..." : "Login"}
             </Button>

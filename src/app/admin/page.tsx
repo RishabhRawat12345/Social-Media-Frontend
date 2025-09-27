@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import axios from "axios";
+import { useState, useEffect, useCallback } from "react";
+import axios, { AxiosError } from "axios";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 
@@ -30,13 +30,10 @@ const AdminPanel: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
 
-  const getAuthToken = (): string | null => {
-    return (
-      localStorage.getItem("authToken") ||
-      localStorage.getItem("access_token") ||
-      sessionStorage.getItem("authToken")
-    );
-  };
+  const getAuthToken = (): string | null =>
+    localStorage.getItem("authToken") ||
+    localStorage.getItem("access_token") ||
+    sessionStorage.getItem("authToken");
 
   const apiClient = axios.create({
     baseURL: "https://socialmediabackend-9hqc.onrender.com/api/",
@@ -52,36 +49,43 @@ const AdminPanel: React.FC = () => {
     (error) => Promise.reject(error)
   );
 
-  const fetchPosts = async () => {
+  const handleAxiosError = (err: unknown) => {
+    if (axios.isAxiosError(err)) {
+      return err.response?.data?.message || err.message;
+    }
+    return (err as Error).message || "An unknown error occurred";
+  };
+
+  const fetchPosts = useCallback(async () => {
     try {
       const res = await apiClient.get<Post[]>("auth/admin/posts/");
       setPosts(res.data);
       setError("");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(`Failed to fetch posts: ${err.response?.data?.message || err.message}`);
+      setError(`Failed to fetch posts: ${handleAxiosError(err)}`);
     }
-  };
+  }, []);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const res = await apiClient.get<User[]>("auth/admin/users/");
       setUsers(res.data);
       setError("");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(`Failed to fetch users: ${err.response?.data?.message || err.message}`);
+      setError(`Failed to fetch users: ${handleAxiosError(err)}`);
     }
-  };
+  }, []);
 
   const fetchUserDetail = async (userId: number) => {
     try {
       const res = await apiClient.get<User>(`auth/admin/users/${userId}/`);
       setSelectedUser(res.data);
       setError("");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(`Failed to fetch user detail: ${err.response?.data?.message || err.message}`);
+      setError(`Failed to fetch user detail: ${handleAxiosError(err)}`);
     }
   };
 
@@ -91,27 +95,29 @@ const AdminPanel: React.FC = () => {
       setPosts((prev) =>
         prev.map((post) => (post.id === postId ? { ...post, is_active: !currentStatus } : post))
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(`Failed to update post: ${err.response?.data?.message || err.message}`);
+      setError(`Failed to update post: ${handleAxiosError(err)}`);
     }
   };
 
-  const updateUserField = async (userId: number, field: "is_active" | "is_staff", value: boolean) => {
+  const updateUserField = async (
+    userId: number,
+    field: "is_active" | "is_staff",
+    value: boolean
+  ) => {
     try {
       await apiClient.put(`auth/admin/users/${userId}/`, { [field]: value });
       setUsers((prev) =>
-        prev.map((user) =>
-          user.id === userId ? { ...user, [field]: value } : user
-        )
+        prev.map((user) => (user.id === userId ? { ...user, [field]: value } : user))
       );
       if (selectedUser && selectedUser.id === userId) {
         setSelectedUser({ ...selectedUser, [field]: value });
       }
       setError("");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(`Failed to update user: ${err.response?.data?.message || err.message}`);
+      setError(`Failed to update user: ${handleAxiosError(err)}`);
     }
   };
 
@@ -130,7 +136,7 @@ const AdminPanel: React.FC = () => {
       setLoading(false);
     };
     fetchData();
-  }, []);
+  }, [fetchPosts, fetchUsers]);
 
   if (loading) return <p className="text-center mt-10 text-white">Loading...</p>;
 
@@ -155,16 +161,13 @@ const AdminPanel: React.FC = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col md:ml-64">
-        {/* Top Bar */}
         <div className="flex justify-between items-center p-4 border-b border-gray-700 sticky top-0 bg-gradient-to-br from-gray-900 via-gray-800 to-black z-10">
           <h1 className="text-2xl font-bold">{activeTab === "posts" ? "Posts" : "Users"}</h1>
         </div>
 
         <ScrollArea className="flex-1 p-6 bg-gradient-to-br from-gray-900 via-gray-800 to-black">
           {error && (
-            <div className="bg-red-100 text-red-700 px-4 py-3 rounded mb-4">
-              {error}
-            </div>
+            <div className="bg-red-100 text-red-700 px-4 py-3 rounded mb-4">{error}</div>
           )}
 
           {activeTab === "posts" && (

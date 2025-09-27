@@ -1,225 +1,256 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import axios from "axios";
+import { useEffect, useState } from "react";
+import axios, { AxiosError } from "axios";
 import Sidebar from "../sidebar/page";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { User, LogOut, Heart, MessageCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
+
+interface Comment {
+  id: number;
+  author: string;
+  content: string;
+  created_at: string;
+}
 
 interface Post {
   id: number;
   author: string;
   content: string;
-  is_active: boolean;
+  image_url?: string;
+  total_likes: number;
+  liked: boolean;
+  total_comments: number;
 }
 
-interface User {
-  id: number;
-  username: string;
-  email: string;
-  is_active: boolean;
-  is_staff: boolean;
-  first_name?: string;
-  last_name?: string;
-}
-
-const AdminPanel: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<"posts" | "users">("posts");
+const Dashboard = () => {
+  const router = useRouter();
   const [posts, setPosts] = useState<Post[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string>("");
+  const [commentsMap, setCommentsMap] = useState<Record<number, Comment[]>>({});
+  const [openComments, setOpenComments] = useState<number | null>(null);
 
-  const getAuthToken = (): string | null => {
-    return localStorage.getItem("authToken") ||
-      localStorage.getItem("access_token") ||
-      sessionStorage.getItem("authToken");
-  };
-
-  const apiClient = axios.create({
-    baseURL: "https://socialmediabackend-9hqc.onrender.com/api/",
-    headers: { "Content-Type": "application/json" },
-  });
-
-  apiClient.interceptors.request.use(
-    (config) => {
-      const token = getAuthToken();
-      if (token) config.headers.Authorization = `Bearer ${token}`;
-      return config;
-    },
-    (error) => Promise.reject(error)
-  );
-
-  const fetchPosts = async () => {
-    try {
-      const res = await apiClient.get<Post[]>("auth/admin/posts/");
-      setPosts(res.data);
-      setError("");
-    } catch (err: any) {
-      setError(`Failed to fetch posts: ${err.response?.data?.message || err.message}`);
-    }
-  };
-
-  const fetchUsers = async () => {
-    try {
-      const res = await apiClient.get<User[]>("auth/admin/users/");
-      setUsers(res.data);
-      setError("");
-    } catch (err: any) {
-      setError(`Failed to fetch users: ${err.response?.data?.message || err.message}`);
-    }
-  };
-
-  const fetchUserDetail = async (userId: number) => {
-    try {
-      const res = await apiClient.get<User>(`auth/admin/users/${userId}/`);
-      setSelectedUser(res.data);
-      setError("");
-    } catch (err: any) {
-      setError(`Failed to fetch user detail: ${err.response?.data?.message || err.message}`);
-    }
-  };
-
-  const togglePostActive = async (postId: number, currentStatus: boolean) => {
-    try {
-      await apiClient.put(`auth/admin/posts/${postId}/`, { is_active: !currentStatus });
-      setPosts((prev) =>
-        prev.map((post) => (post.id === postId ? { ...post, is_active: !currentStatus } : post))
-      );
-    } catch (err: any) {
-      setError(`Failed to update post: ${err.response?.data?.message || err.message}`);
-    }
-  };
-
-  const updateUserField = async (userId: number, field: "is_active" | "is_staff", value: boolean) => {
-    try {
-      await apiClient.put(`auth/admin/users/${userId}/`, { [field]: value });
-      setUsers((prev) =>
-        prev.map((user) =>
-          user.id === userId ? { ...user, [field]: value } : user
-        )
-      );
-      if (selectedUser && selectedUser.id === userId) {
-        setSelectedUser({ ...selectedUser, [field]: value });
-      }
-      setError("");
-    } catch (err: any) {
-      setError(`Failed to update user: ${err.response?.data?.message || err.message}`);
-    }
-  };
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError("");
-      const token = getAuthToken();
-      if (!token) {
-        setError("Authentication required. Please log in.");
-        setLoading(false);
-        return;
-      }
-      await fetchPosts();
-      await fetchUsers();
-      setLoading(false);
-    };
-    fetchData();
-  }, []);
+    if (!token) return;
 
-  if (loading) return <p className="text-center mt-10 text-white">Loading...</p>;
+    const fetchAll = async () => {
+      try {
+        const resPosts = await axios.get<Post[]>(
+          "https://socialmediabackend-9hqc.onrender.com/api/posts/",
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        const mappedPosts: Post[] = resPosts.data.map((p) => ({
+          ...p,
+          total_likes: p.total_likes ?? 0,
+          liked: p.liked ?? false,
+          total_comments: p.total_comments ?? 0,
+        }));
+        setPosts(mappedPosts);
+
+        const commentsMapTemp: Record<number, Comment[]> = {};
+        await Promise.all(
+          mappedPosts.map(async (post) => {
+            const resComments = await axios.get<Comment[]>(
+              `https://socialmediabackend-9hqc.onrender.com/api/posts/${post.id}/comments/`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            commentsMapTemp[post.id] = resComments.data;
+          })
+        );
+        setCommentsMap(commentsMapTemp);
+      } catch (err) {
+        console.error(err as AxiosError);
+      }
+    };
+
+    fetchAll();
+  }, [token]);
+
+  const toggleLike = async (postId: number) => {
+    if (!token) return;
+
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId
+          ? {
+              ...p,
+              liked: !p.liked,
+              total_likes: p.liked ? p.total_likes - 1 : p.total_likes + 1,
+            }
+          : p
+      )
+    );
+
+    try {
+      await axios.post(
+        `https://socialmediabackend-9hqc.onrender.com/api/posts/${postId}/like/`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const addComment = async (postId: number, text: string) => {
+    if (!token || !text.trim()) return;
+
+    const newComment: Comment = {
+      id: Date.now(),
+      author: "You",
+      content: text,
+      created_at: new Date().toISOString(),
+    };
+
+    setCommentsMap((prev) => ({
+      ...prev,
+      [postId]: prev[postId] ? [...prev[postId], newComment] : [newComment],
+    }));
+
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId ? { ...p, total_comments: p.total_comments + 1 } : p
+      )
+    );
+
+    try {
+      await axios.post(
+        `https://socialmediabackend-9hqc.onrender.com/api/posts/${postId}/comments/create/`,
+        { content: text },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const viewUserProfile = (username: string) => {
+    router.push(`/profile/${username}`);
+  };
+
+  const handleLogout = () => {
+    localStorage.clear();
+    router.push("/login");
+  };
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white">
+    <div className="flex min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-800 text-white">
       {/* Sidebar */}
       <div className="hidden md:flex md:flex-col w-64 h-screen border-r border-gray-700 bg-gray-900 fixed top-0 left-0 z-20">
         <Sidebar />
       </div>
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col md:ml-64">
-        <div className="flex justify-between items-center p-4 border-b border-gray-700 sticky top-0 bg-gray-900 z-10">
-          <h1 className="text-2xl font-bold">{activeTab === "posts" ? "Posts" : "Users"}</h1>
+        {/* Top Bar */}
+        <div className="flex justify-between items-center p-4 border-b border-gray-700 sticky top-0 bg-black z-10">
+          <div></div>
+          <Button
+            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg shadow-md transition"
+            onClick={handleLogout}
+          >
+            <LogOut className="w-4 h-4" /> Logout
+          </Button>
         </div>
 
-        <ScrollArea className="flex-1 p-6">
-          {error && (
-            <div className="bg-red-100 text-red-800 p-3 rounded mb-4">
-              {error}
-            </div>
-          )}
-
-          {activeTab === "posts" &&
-            posts.map((post) => (
-              <Card
-                key={post.id}
-                className="p-4 mb-4 bg-gray-800 rounded-xl shadow-md hover:shadow-gray-600 transition"
+        <ScrollArea className="flex-1 p-4 md:p-6">
+          {posts.map((post) => (
+            <Card
+              key={post.id}
+              className="p-4 shadow-lg bg-gray-900 mb-4 rounded-xl hover:shadow-gray-700 transition"
+            >
+              <div
+                className="flex items-center mb-2 cursor-pointer"
+                onClick={() => viewUserProfile(post.author)}
               >
-                <p className="font-semibold text-white mb-1">Post ID: {post.id}</p>
-                <p className="text-gray-300 mb-2">Author: {post.author}</p>
-                <p className="text-gray-200 mb-2">{post.content}</p>
-                <p className="text-sm mb-2">
-                  Status: {post.is_active ? "Active" : "Inactive"}
-                </p>
-                <Button
-                  className={`mt-2 ${post.is_active ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"}`}
-                  onClick={() => togglePostActive(post.id, post.is_active)}
-                >
-                  {post.is_active ? "Deactivate" : "Activate"}
-                </Button>
-              </Card>
-            ))}
-
-          {activeTab === "users" &&
-            users.map((user) => (
-              <Card
-                key={user.id}
-                className="p-4 mb-4 bg-gray-800 rounded-xl shadow-md hover:shadow-gray-600 transition cursor-pointer"
-                onClick={() => fetchUserDetail(user.id)}
-              >
-                <p className="font-semibold text-white mb-1">User ID: {user.id}</p>
-                <p className="text-gray-300 mb-1">Username: {user.username}</p>
-                <p className="text-gray-300 mb-1">Email: {user.email}</p>
-                <p className="text-sm mb-1">Status: {user.is_active ? "Active" : "Inactive"}</p>
-                <p className="text-sm mb-1">Staff: {user.is_staff ? "Yes" : "No"}</p>
-              </Card>
-            ))}
-
-          {selectedUser && (
-            <Card className="bg-gray-700 p-4 rounded-xl shadow-md mt-4">
-              <p className="font-semibold mb-1">User Detail - ID: {selectedUser.id}</p>
-              <p className="mb-1">Username: {selectedUser.username}</p>
-              <p className="mb-1">Email: {selectedUser.email}</p>
-              {selectedUser.first_name && <p className="mb-1">First Name: {selectedUser.first_name}</p>}
-              {selectedUser.last_name && <p className="mb-1">Last Name: {selectedUser.last_name}</p>}
-              <p className="mb-1">Status: {selectedUser.is_active ? "Active" : "Inactive"}</p>
-              <p className="mb-2">Staff: {selectedUser.is_staff ? "Yes" : "No"}</p>
-
-              <div className="flex gap-2">
-                <Button
-                  className={`${
-                    selectedUser.is_active ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"
-                  }`}
-                  onClick={() => updateUserField(selectedUser.id, "is_active", !selectedUser.is_active)}
-                >
-                  {selectedUser.is_active ? "Deactivate" : "Activate"}
-                </Button>
-
-                <Button
-                  className={`${
-                    selectedUser.is_staff ? "bg-red-700 hover:bg-red-800" : "bg-blue-600 hover:bg-blue-700"
-                  }`}
-                  onClick={() => updateUserField(selectedUser.id, "is_staff", !selectedUser.is_staff)}
-                >
-                  {selectedUser.is_staff ? "Remove Staff" : "Make Staff"}
-                </Button>
+                <User className="w-6 h-6 mr-2 text-gray-300" />
+                <span className="font-medium text-white">{post.author}</span>
               </div>
+
+              <p className="mb-2 text-white">{post.content}</p>
+
+               {post.image_url && (
+                 <div className="w-full mb-2 flex justify-center">
+    <img
+      src={post.image_url}
+      alt="Post"
+      className="max-w-full max-h-96 rounded-xl border border-gray-700 shadow-lg"
+      style={{ objectFit: "contain" }}
+    />
+             </div>
+              )}
+
+
+              <div className="flex items-center gap-6 mt-2">
+                <button
+                  className="flex items-center gap-1"
+                  onClick={() => toggleLike(post.id)}
+                >
+                  <Heart
+                    className={`w-6 h-6 ${
+                      post.liked ? "text-red-500 fill-red-500" : "text-gray-400"
+                    }`}
+                  />
+                  <span className="ml-1 text-white">{post.total_likes}</span>
+                </button>
+
+                <button
+                  className="flex items-center gap-1"
+                  onClick={() =>
+                    setOpenComments(openComments === post.id ? null : post.id)
+                  }
+                >
+                  <MessageCircle className="w-6 h-6 text-gray-400" />
+                  <span className="ml-1 text-white">{post.total_comments}</span>
+                </button>
+              </div>
+
+              {openComments === post.id && (
+                <div className="mt-4 space-y-2">
+                  {commentsMap[post.id]?.map((c) => (
+                    <div key={c.id} className="text-sm text-gray-300">
+                      <span className="font-medium text-white">{c.author}:</span>{" "}
+                      {c.content}
+                    </div>
+                  ))}
+                  <form
+                    className="flex gap-2 mt-2"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const input = e.currentTarget.elements.namedItem(
+                        "comment"
+                      ) as HTMLInputElement;
+                      addComment(post.id, input.value);
+                      input.value = "";
+                    }}
+                  >
+                    <Input
+                      name="comment"
+                      placeholder="Add a comment..."
+                      className="bg-gray-800 text-white text-sm rounded-lg"
+                    />
+                    <Button
+                      type="submit"
+                      size="sm"
+                      className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
+                    >
+                      Post
+                    </Button>
+                  </form>
+                </div>
+              )}
             </Card>
-          )}
+          ))}
         </ScrollArea>
       </div>
     </div>
   );
 };
 
-export default AdminPanel;
+export default Dashboard;
