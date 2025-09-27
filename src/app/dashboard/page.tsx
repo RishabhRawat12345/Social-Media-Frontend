@@ -28,6 +28,19 @@ interface Post {
   total_comments: number;
 }
 
+// Helper function to sanitize image URLs
+const sanitizeImageUrl = (url: string) => {
+  if (!url) return "";
+  const cleanUrl = url.split("?")[0]; // Remove query parameters
+  return cleanUrl.replace(/[\(\)\s]/g, "_"); // Replace unsafe characters
+};
+
+// Determine if the URL should bypass Next.js optimization
+const needsUnoptimized = (url: string) => {
+  if (!url) return true;
+  return /[\(\)]/.test(url);
+};
+
 const Dashboard = () => {
   const router = useRouter();
   const [posts, setPosts] = useState<Post[]>([]);
@@ -183,11 +196,12 @@ const Dashboard = () => {
 
                 {post.image_url && (
                   <Image
-                    src={post.image_url}
+                    src={sanitizeImageUrl(post.image_url)}
                     alt="Post"
                     width={800}
                     height={500}
                     className="w-full max-h-96 object-cover rounded-lg mb-2"
+                    unoptimized={needsUnoptimized(post.image_url)}
                   />
                 )}
 
