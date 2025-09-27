@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import axios, { AxiosError } from "axios";
-import Sidebar from "../Sidebar/page";
+import Sidebar from "../sidebar/page";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
