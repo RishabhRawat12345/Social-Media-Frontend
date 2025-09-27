@@ -24,6 +24,7 @@ interface Post {
 
 interface ProfileData {
   id: number;
+  user: number;
   username: string;
   avatar_url?: string;
   bio?: string;
@@ -79,7 +80,7 @@ const Profile = () => {
         if (!id || profileRes.data.is_me) setIsOwnProfile(true);
 
         const postsUrl = id
-          ? `https://socialmediabackend-9hqc.onrender.com/api/posts/user/${id}/`
+          ? `https://socialmediabackend-9hqc.onrender.com/api/posts/user/${profileRes.data.user}/`
           : "https://socialmediabackend-9hqc.onrender.com/api/posts/myposts/";
 
         const postsRes = await axios.get<Post[]>(postsUrl, {
@@ -87,28 +88,43 @@ const Profile = () => {
         });
         setPosts(postsRes.data);
 
-        const statsRes = await axios.get<{
-          followers_count: number;
-          following_count: number;
-          followers_ids: number[];
-        }>(
-          `https://socialmediabackend-9hqc.onrender.com/api/followers/${profileRes.data.id}/stats/`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        // Followers stats (safe 404)
+        try {
+          const statsRes = await axios.get<{
+            followers_count: number;
+            following_count: number;
+            followers_ids: number[];
+          }>(
+            `https://socialmediabackend-9hqc.onrender.com/api/followers/${profileRes.data.user}/stats/`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
 
-        setProfile((prev) =>
-          prev
-            ? {
-                ...prev,
-                followers_count: statsRes.data.followers_count,
-                following_count: statsRes.data.following_count,
-                followers_ids: statsRes.data.followers_ids,
-              }
-            : prev
-        );
+          setProfile((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  followers_count: statsRes.data.followers_count,
+                  following_count: statsRes.data.following_count,
+                  followers_ids: statsRes.data.followers_ids,
+                }
+              : prev
+          );
 
-        if (id && !profileRes.data.is_me && myId) {
-          setIsFollowing(statsRes.data.followers_ids.includes(myId));
+          if (id && !profileRes.data.is_me && myId) {
+            setIsFollowing(statsRes.data.followers_ids.includes(myId));
+          }
+        } catch {
+          setProfile((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  followers_count: 0,
+                  following_count: 0,
+                  followers_ids: [],
+                }
+              : prev
+          );
+          setIsFollowing(false);
         }
       } catch (err) {
         console.error("Error fetching profile:", err);
@@ -121,11 +137,11 @@ const Profile = () => {
   }, [id, token, myId]);
 
   const handleFollowToggle = async () => {
-    if (!token || !profile?.id || !myId) return;
+    if (!token || !profile?.user || !myId) return;
 
     try {
       await axios.post(
-        `https://socialmediabackend-9hqc.onrender.com/api/followers/${profile.id}/follow/`,
+        `https://socialmediabackend-9hqc.onrender.com/api/followers/${profile.user}/follow/`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -225,7 +241,7 @@ const Profile = () => {
               src={
                 newProfileImage
                   ? URL.createObjectURL(newProfileImage)
-                  : profile.avatar_url || "/default-avatar.png"
+                  : profile.avatar_url?.replace(/\?$/, "") || "/default-avatar.png"
               }
               alt="Profile"
               width={160}
@@ -303,7 +319,7 @@ const Profile = () => {
               className="relative group overflow-hidden rounded-xl shadow-lg hover:shadow-purple-700/50 transition transform hover:scale-105"
             >
               <Image
-                src={post.image_url}
+                src={post.image_url.replace(/\?$/, "")}
                 alt={post.caption || "Post"}
                 width={500}
                 height={500}
