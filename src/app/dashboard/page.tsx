@@ -22,24 +22,14 @@ interface Post {
   id: number;
   author: string;
   content: string;
-  image_url?: string;
+  image_url?: string; // only filename stored in DB
   total_likes: number;
   liked: boolean;
   total_comments: number;
 }
 
-// Helper function to sanitize image URLs
-const sanitizeImageUrl = (url: string) => {
-  if (!url) return "";
-  const cleanUrl = url.split("?")[0]; // Remove query parameters
-  return cleanUrl.replace(/[\(\)\s]/g, "_"); // Replace unsafe characters
-};
-
-// Determine if the URL should bypass Next.js optimization
-const needsUnoptimized = (url: string) => {
-  if (!url) return true;
-  return /[\(\)]/.test(url);
-};
+const SUPABASE_URL =
+  "https://rwocivhozcmfswyilrwy.supabase.co/storage/v1/object/public/posts/posts/";
 
 const Dashboard = () => {
   const router = useRouter();
@@ -196,12 +186,12 @@ const Dashboard = () => {
 
                 {post.image_url && (
                   <Image
-                    src={sanitizeImageUrl(post.image_url)}
+                    src={`${SUPABASE_URL}${post.image_url}`}
                     alt="Post"
                     width={800}
                     height={500}
                     className="w-full max-h-96 object-cover rounded-lg mb-2"
-                    unoptimized={needsUnoptimized(post.image_url)}
+                    unoptimized
                   />
                 )}
 
