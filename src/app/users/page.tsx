@@ -53,7 +53,7 @@ const SearchUsers = () => {
   };
 
   const handleViewProfile = (username: string) => {
-    router.push(`/Profile/${username}`);
+    router.push(`/profile/${username}`);
   };
 
   const handleBack = () => {
@@ -83,13 +83,9 @@ const SearchUsers = () => {
           <LogOut className="w-4 h-4" /> Logout
         </Button>
       </div>
-
-      {/* Title */}
       <h2 className="text-2xl sm:text-3xl font-semibold mb-6 text-center">
         Search Users
       </h2>
-
-      {/* Search Input */}
       <div className="flex items-center gap-2 mb-6">
         <Input
           placeholder="Search by username, first or last name..."
@@ -98,8 +94,6 @@ const SearchUsers = () => {
           onChange={handleSearch}
         />
       </div>
-
-      {/* Loading */}
       {loading ? (
         <div className="flex justify-center mt-6">
           <Loader2 className="animate-spin h-10 w-10 text-white" />
